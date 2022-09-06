@@ -5,14 +5,14 @@ FILEPATH = "./test.gcode"
 VERBOSE = True
 unknown_directives: set[str] = set()
 
+
 class Directives(Enum):
     HOME_ALL_AXES = "G28"
     LINEAR_MOVE = "G1"
     RESET_EXTRUDER = "G92"
 
-IGNORED_DIRECTIVES = {
-    Directives.RESET_EXTRUDER.value
-}
+
+IGNORED_DIRECTIVES = {Directives.RESET_EXTRUDER.value}
 
 
 class State:
@@ -26,27 +26,19 @@ class State:
     time_uses = list[float]
 
     def __repr__(self):
-
-        return '''
+        return f"""
 ===========================
 [positions]
 (
-  x: {},
-  y: {},
-  z: {}
+  x: {self.x},
+  y: {self.y},
+  z: {self.z}
 )
-[f]: {},
-[layer]: {},
-[sec_passed]: {},
+[f]: {self.f},
+[layer]: {self.layer},
+[sec_passed]: {self.seconds_passed},
 ===========================
-        '''.format(
-            self.x,
-            self.y,
-            self.z,
-            self.f,
-            self.layer,
-            self.seconds_passed,
-        )
+        """
 
     def __init__(self):
         self.x = 0.0
@@ -63,7 +55,7 @@ class State:
 
     def layer_changed(self, increased: bool):
         self.layer += 1 if increased else -1
-        print('layer changed: %d' % self.layer)
+        print("layer changed: %d" % self.layer)
 
     def move(
         self,
@@ -88,18 +80,18 @@ class State:
             self.f = f
 
         if self.f is None and previous_f is None:
-            raise Exception('no feed rate specified')
+            raise Exception("no feed rate specified")
         elif self.f is None and previous_f is not None:
             mm_per_second = previous_f / 60
         elif self.f is not None:
             mm_per_second = self.f / 60
         else:
-            raise Exception('mm_per_second cant be calculated without feed rate')
+            raise Exception("mm_per_second cant be calculated without feed rate")
 
         segment_length = math.sqrt(
-            (self.x - previous_x)**2 +
-            (self.y - previous_y)**2 +
-            (self.z - previous_z)**2
+            (self.x - previous_x) ** 2
+            + (self.y - previous_y) ** 2
+            + (self.z - previous_z) ** 2
         )
 
         move_time = segment_length / mm_per_second
@@ -114,16 +106,20 @@ def main():
     lines: list[list[str]] = []
     with open(FILEPATH, "r") as f:
         for line in f:
+            line = line.strip()  # remove comment margins
+            if line == '':
+                continue
             line = line.split(";")[0]  # remove comments
             line = line.strip()  # remove comment margins
             line = line.split()  # split to directives
-            lines.append(line)
+            if len(line):
+                lines.append(line)
 
     for line in lines:
         handle_line(line, positions)
 
     if len(unknown_directives):
-        print('UNKNOWN DIRECTIVES:')
+        print("UNKNOWN DIRECTIVES:")
         print(unknown_directives)
 
 
@@ -155,7 +151,6 @@ def handle_line(line: list[str], position: State):
     elif directive in IGNORED_DIRECTIVES:
         pass
     else:
-        print('UNRECOGNIZED', directive)
         unknown_directives.add(directive)
 
 
