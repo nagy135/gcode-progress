@@ -88,11 +88,6 @@ class State:
         self.layer = 0
         self.move_mode = MoveModes.ABSOLUTE
 
-    def home(self):
-        self.x = 0.0
-        self.y = 0.0
-        self.z = 0.0
-
     def layer_changed(self, increased: bool):
         self.layer += 1 if increased else -1
         print("layer changed: %d" % self.layer)
@@ -188,7 +183,7 @@ def parse_to_xyzf(line: list[str]) -> list[float | None]:
 def handle_line(line: list[str], state: State):
     directive = line[0]
     if directive == Directives.HOME_ALL_AXES.value:
-        state.home()
+        state.move(0.0, 0.0, 0.0, None)
     elif directive in {
         Directives.LINEAR_MOVE.value,
         Directives.EMPTY_LINEAR_MOVE.value,
