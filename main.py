@@ -41,8 +41,6 @@ IGNORED_DIRECTIVES = {
     Directives.FAN_OFF.value,
     Directives.SETUP_ACCELERATION.value,
     Directives.SETUP_JERK.value,
-    Directives.ABSOLUTE_POSITIONING.value,
-    Directives.RELATIVE_POSITIONING.value,
     Directives.SETUP_MAX_ACCELERATION.value,
     Directives.SETUP_MAX_FEEDRATE.value,
     Directives.TURN_OFF_BED.value,
