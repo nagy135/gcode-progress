@@ -1,8 +1,10 @@
 from enum import Enum
 import math
+import time
 
 FILEPATH = "./test.gcode"
-VERBOSE = True
+VERBOSE = False
+HOMING_FEED_RATE = 1500
 unknown_directives: set[str] = set()
 
 
@@ -62,7 +64,7 @@ class State:
     seconds_passed: float
     move_mode: MoveModes
 
-    time_uses = list[float]
+    time_uses: list[float]
 
     def __repr__(self):
         return f"""
@@ -85,12 +87,24 @@ class State:
         self.z = 0.0
         self.f = None
         self.seconds_passed = 0.0
+        self.layer_start_at = 0.0
         self.layer = 0
+        self.time_uses = []
         self.move_mode = MoveModes.ABSOLUTE
+
+    def simulate(self):
+        layer_i = 0
+        for layer_wait in self.time_uses:
+            print(f"{layer_i}, waiting {layer_wait}")
+            time.sleep(layer_wait)
+            layer_i += 1
 
     def layer_changed(self, increased: bool):
         self.layer += 1 if increased else -1
-        print("layer changed: %d" % self.layer)
+        elapsed_time = self.seconds_passed - self.layer_start_at
+        self.layer_start_at = self.seconds_passed
+        self.time_uses.append(elapsed_time)
+        print(f"layer: {self.layer} (takes: {elapsed_time})")
 
     def change_move_mode(self, new: MoveModes):
         self.move_mode = new
@@ -140,26 +154,6 @@ class State:
             print(self)
 
 
-def main():
-    positions = State()
-    lines: list[list[str]] = []
-    with open(FILEPATH, "r") as f:
-        for line in f:
-            line = line.strip()  # remove comment margins
-            if line == "":
-                continue
-            line = line.split(";")[0]  # remove comments
-            line = line.strip()  # remove comment margins
-            line = line.split()  # split to directives
-            if len(line):
-                lines.append(line)
-
-    for line in lines:
-        handle_line(line, positions)
-
-    if len(unknown_directives):
-        print("UNKNOWN DIRECTIVES:")
-        print(unknown_directives)
 
 
 def parse_to_xyzf(line: list[str]) -> list[float | None]:
@@ -183,7 +177,7 @@ def parse_to_xyzf(line: list[str]) -> list[float | None]:
 def handle_line(line: list[str], state: State):
     directive = line[0]
     if directive == Directives.HOME_ALL_AXES.value:
-        state.move(0.0, 0.0, 0.0, None)
+        state.move(0.0, 0.0, 0.0, HOMING_FEED_RATE)
     elif directive in {
         Directives.LINEAR_MOVE.value,
         Directives.EMPTY_LINEAR_MOVE.value,
@@ -198,6 +192,29 @@ def handle_line(line: list[str], state: State):
         pass
     else:
         unknown_directives.add(directive)
+
+def main():
+    state = State()
+    lines: list[list[str]] = []
+    with open(FILEPATH, "r") as f:
+        for line in f:
+            line = line.strip()  # remove comment margins
+            if line == "":
+                continue
+            line = line.split(";")[0]  # remove comments
+            line = line.strip()  # remove comment margins
+            line = line.split()  # split to directives
+            if len(line):
+                lines.append(line)
+
+    for line in lines:
+        handle_line(line, state)
+
+    if len(unknown_directives):
+        print("UNKNOWN DIRECTIVES:")
+        print(unknown_directives)
+
+    state.simulate()
 
 
 if __name__ == "__main__":
