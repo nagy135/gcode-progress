@@ -9,10 +9,50 @@ unknown_directives: set[str] = set()
 class Directives(Enum):
     HOME_ALL_AXES = "G28"
     LINEAR_MOVE = "G1"
+    EMPTY_LINEAR_MOVE = "G0"
     RESET_EXTRUDER = "G92"
+    DISABLE_ALL_STEPPERS = "M84"
+    FAN_OFF = "M107"
+    SETUP_ACCELERATION = "M204"
+    SETUP_JERK = "M205"
+    SETUP_MAX_ACCELERATION = "M201"
+    SETUP_MAX_FEEDRATE = "M203"
+    RESET_FEEDRATE = "M220"
+    RESET_FLOWRATE = "M221"
+    ABSOLUTE_POSITIONING = "G90"
+    RELATIVE_POSITIONING = "G91"
+    TURN_OFF_HOTEND = "M104"
+    TURN_OFF_BED = "M140"
+    TURN_OFF_FAN = "M106"
+    REPORT_TEMPERATURES = "M105"
+    WAIT_FOR_TEMPERATURES = "M109"
+    WAIT_FOR_BED_TEMPERATURE = "M190"
+    E_ABSOLUTE = "M82"
 
+class MoveModes(Enum):
+    RELATIVE = "relative"
+    ABSOLUTE = "absolute"
 
-IGNORED_DIRECTIVES = {Directives.RESET_EXTRUDER.value}
+IGNORED_DIRECTIVES = {
+    Directives.RESET_EXTRUDER.value,
+    Directives.DISABLE_ALL_STEPPERS.value,
+    Directives.RESET_FEEDRATE.value,
+    Directives.RESET_FLOWRATE.value,
+    Directives.FAN_OFF.value,
+    Directives.SETUP_ACCELERATION.value,
+    Directives.SETUP_JERK.value,
+    Directives.ABSOLUTE_POSITIONING.value,
+    Directives.RELATIVE_POSITIONING.value,
+    Directives.SETUP_MAX_ACCELERATION.value,
+    Directives.SETUP_MAX_FEEDRATE.value,
+    Directives.TURN_OFF_BED.value,
+    Directives.TURN_OFF_FAN.value,
+    Directives.TURN_OFF_HOTEND.value,
+    Directives.REPORT_TEMPERATURES.value,
+    Directives.WAIT_FOR_TEMPERATURES.value,
+    Directives.WAIT_FOR_BED_TEMPERATURE.value,
+    Directives.E_ABSOLUTE.value,
+}
 
 
 class State:
@@ -22,6 +62,7 @@ class State:
     f: float | None
     layer: int
     seconds_passed: float
+    move_mode: MoveModes
 
     time_uses = list[float]
 
@@ -47,6 +88,7 @@ class State:
         self.f = None
         self.seconds_passed = 0.0
         self.layer = 0
+        self.move_mode = MoveModes.ABSOLUTE
 
     def home(self):
         self.x = 0.0
@@ -56,6 +98,9 @@ class State:
     def layer_changed(self, increased: bool):
         self.layer += 1 if increased else -1
         print("layer changed: %d" % self.layer)
+
+    def change_move_mode(self, new: MoveModes):
+        self.move_mode = new
 
     def move(
         self,
@@ -68,12 +113,13 @@ class State:
         previous_y = self.y
         previous_z = self.z
         previous_f = self.f
+        absolute = self.move_mode == MoveModes.ABSOLUTE
         if x is not None:
-            self.x = x
+            self.x = x if absolute else previous_x + x
         if y is not None:
-            self.y = y
+            self.y = y if absolute else previous_y + y
         if z is not None:
-            self.z = z
+            self.z = z if absolute else previous_z + z
             if previous_z != self.z:
                 self.layer_changed(self.z > previous_z)
         if f is not None:
@@ -107,7 +153,7 @@ def main():
     with open(FILEPATH, "r") as f:
         for line in f:
             line = line.strip()  # remove comment margins
-            if line == '':
+            if line == "":
                 continue
             line = line.split(";")[0]  # remove comments
             line = line.strip()  # remove comment margins
@@ -141,13 +187,20 @@ def parse_to_xyzf(line: list[str]) -> list[float | None]:
     return [x, y, z, f]
 
 
-def handle_line(line: list[str], position: State):
+def handle_line(line: list[str], state: State):
     directive = line[0]
     if directive == Directives.HOME_ALL_AXES.value:
-        position.home()
-    elif directive == Directives.LINEAR_MOVE.value:
+        state.home()
+    elif directive in {
+        Directives.LINEAR_MOVE.value,
+        Directives.EMPTY_LINEAR_MOVE.value,
+    }:
         xyzf = parse_to_xyzf(line[1:])
-        position.move(*xyzf)
+        state.move(*xyzf)
+    elif directive == Directives.ABSOLUTE_POSITIONING.value:
+        state.change_move_mode(MoveModes.ABSOLUTE)
+    elif directive == Directives.RELATIVE_POSITIONING.value:
+        state.change_move_mode(MoveModes.RELATIVE)
     elif directive in IGNORED_DIRECTIVES:
         pass
     else:
